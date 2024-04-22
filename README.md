@@ -15,18 +15,24 @@ import Fluent
 import FluendDuckDBDriver
 
 // in-memory
-app.databases.use(.duckdb(), as: .psql)
+app.databases.use(.duckdb(), as: .duckdb)
 
 // stored
-app.databases.use(.duckdb(store: .file(URL(fileURLWithPath: "./my_database.db"))), as: .psql)
+app.databases.use(.duckdb(configuration: DuckDBConfiguration(
+      store: .file(at: URL(fileURLWithPath: "./my_database.db"))
+   )),
+   as: .duckdb
+)
 
 // custom configuration
-app.databases.use(.duckdb(
-   store: .file(URL(fileURLWithPath: "./my_database.db")),
-   configuration: [
-      // for full parameter list refer to
-      //   https://duckdb.org/docs/configuration/overview#global-configuration-options
-      "access_mode": "READ_WRITE",
-   ]
-), as: .psql)
+app.databases.use(.duckdb(configuration: DuckDBConfiguration(
+      store: .file(at: URL(fileURLWithPath: "./my_database.db")),
+      configuration: [
+         // for full parameter list refer to
+         //   https://duckdb.org/docs/configuration/overview#global-configuration-options
+         "access_mode": "READ_WRITE",
+      ]
+   )),
+   as: .duckdb
+)
 ```
