@@ -1,7 +1,10 @@
 import Foundation
 import NIOCore
 import NIOPosix
+import NIOConcurrencyHelpers
 import Logging
+import DuckDBNIO
+
 @preconcurrency import DuckDB
 
 public protocol DuckDBDatabase {
@@ -70,52 +73,51 @@ private struct _DuckDBDatabaseCustomLogger: DuckDBDatabase {
     }
 }
 
-internal final class DuckDBConnectionHandle: @unchecked Sendable {
-    var raw: OpaquePointer?
-    
-    init(_ raw: OpaquePointer?) {
-        self.raw = raw
-    }
-}
-
 public final class DuckDBConnection: DuckDBDatabase {
     public enum DuckDBConnectionError: Error {
         case invalidUUID(String)
     }
+    
     public typealias Store = DuckDB.Database.Store
     
     public let eventLoop: any EventLoop
     
-    internal let handle: DuckDB.Connection
-    internal let threadPool: NIOThreadPool
+    private let threadPool: NIOThreadPool
+    private let store: Store
+    private let configuration: SQLDuckDBConfiguration?
+    private var database: DuckDB.Database!
+    private var connection: DuckDB.Connection!
+    private static let lock = NIOLock()
+    private static var connections: [DuckDBConnection] = []
     public let logger: Logger
     
     public var isClosed: Bool { false }
     
-    public static func open(
-        store: Store = .inMemory,
-        configuration: DuckDB.Database.Configuration? = nil,
-        logger: Logger = .init(label: "codes.vapor.DuckDB")
-    ) -> EventLoopFuture<DuckDBConnection> {
-        Self.open(
-            store: store,
-            configuration: configuration,
-            threadPool: NIOThreadPool.singleton,
-            logger: logger,
-            on: MultiThreadedEventLoopGroup.singleton.any()
-        )
-    }
+//    public static func open(
+//        store: Store = .inMemory,
+//        configuration: SQLDuckDBConfiguration? = nil,
+//        logger: Logger = .init(label: "codes.vapor.DuckDB")
+//    ) -> EventLoopFuture<DuckDBConnection> {
+//        Self.open(
+//            store: store,
+//            configuration: configuration,
+//            threadPool: NIOThreadPool.singleton,
+//            logger: logger,
+//            on: MultiThreadedEventLoopGroup.singleton.any()
+//        )
+//    }
     
     public static func open(
         store: Store = .inMemory,
-        configuration: DuckDB.Database.Configuration? = nil,
+        configuration: SQLDuckDBConfiguration? = nil,
         threadPool: NIOThreadPool,
         logger: Logger = .init(label: "codes.vapor.DuckDB"),
         on eventLoop: any EventLoop
     ) -> EventLoopFuture<DuckDBConnection> {
         threadPool.runIfActive(eventLoop: eventLoop) {
-            let connection = DuckDBConnection(
-                handle: try DuckDB.Database(store: store, configuration: configuration).connect(),
+            let connection = try DuckDBConnection(
+                store: store,
+                configuration: configuration,
                 threadPool: threadPool,
                 logger: logger,
                 on: eventLoop
@@ -126,24 +128,40 @@ public final class DuckDBConnection: DuckDBDatabase {
     }
     
     init(
-        handle: DuckDB.Connection,
+        store: Store = .inMemory,
+        configuration: SQLDuckDBConfiguration? = nil,
         threadPool: NIOThreadPool,
         logger: Logger,
         on eventLoop: any EventLoop
-    ) {
-        self.handle = handle
+    ) throws {
         self.threadPool = threadPool
         self.logger = logger
         self.eventLoop = eventLoop
+        self.store = store
+        self.configuration = configuration
+        self.database = nil
+        self.connection = nil
+        try DuckDBConnection.lock.withLock {
+            var database = DuckDBConnection.connections.first {
+                $0.store == store &&
+                $0.configuration == configuration
+            }?.database
+            
+            if database == nil {
+                database = try DuckDB.Database(store: store, configuration: configuration?.configuration)
+            }
+            
+            self.database = database
+            self.connection = try database!.connect()
+            
+            DuckDBConnection.connections.append(self)
+        }
     }
     
-//    public func lastAutoincrementID() -> EventLoopFuture<Int> {
-//        self.threadPool.runIfActive(eventLoop: self.eventLoop) {
-//            let rowid = sqlite_nio_sqlite3_last_insert_rowid(self.handle.raw)
-//            return numericCast(rowid)
-//        }
-//    }
-
+    deinit {
+        assert(self.connection == nil && self.database == nil, "DuckDBConnection was not closed before deinitializing")
+    }
+    
     @preconcurrency public func withConnection<T>(
         _ closure: @escaping @Sendable (DuckDBConnection) -> EventLoopFuture<T>
     ) -> EventLoopFuture<T> {
@@ -166,7 +184,7 @@ public final class DuckDBConnection: DuckDBDatabase {
             }
             var futures: [EventLoopFuture<Void>] = []
             do {
-                let statement = try DuckDB.PreparedStatement(connection: self.handle, query: query)
+                let statement = try DuckDB.PreparedStatement(connection: self.connection, query: query)
                 
                 for (index, value) in binds.enumerated() {
                     try value.bind(to: statement, at: index + 1)
@@ -276,7 +294,13 @@ public final class DuckDBConnection: DuckDBDatabase {
 
     public func close() -> EventLoopFuture<Void> {
         self.threadPool.runIfActive(eventLoop: self.eventLoop) {
-//            self.handle.raw = nil
+            DuckDBConnection.lock.withLock {
+                DuckDBConnection.connections.removeAll {
+                    $0 === self
+                }
+            }
+            self.connection = nil
+            self.database = nil
         }
     }
 }
@@ -287,3 +311,24 @@ fileprivate final class UnsafeMutableTransferBox<Wrapped: Sendable>: @unchecked 
 }
 
 extension DuckDBConnection: Sendable {}
+
+extension DuckDB.Database.Store: Equatable {
+    public static func == (lhs: Database.Store, rhs: Database.Store) -> Bool {
+        switch (lhs, rhs) {
+        case (.inMemory, .inMemory): true
+        case (.file(let l), .file(let r)): l.baseURL == r.baseURL
+        default: false
+        }
+    }
+    
+    
+}
+
+extension DuckDB.Database.Store: Hashable {
+    public func hash(into hasher: inout Hasher) {
+        switch self {
+        case .inMemory: hasher.combine(":memory:")
+        case .file(let url): hasher.combine(url.baseURL)
+        }
+    }
+}

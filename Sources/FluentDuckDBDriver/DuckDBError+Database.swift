@@ -5,25 +5,27 @@ extension DuckDB.DatabaseError: FluentKit.DatabaseError {
     public var isSyntaxError: Bool {
         switch self {
         case .connectionQueryError, .preparedStatementFailedToInitialize:
-            return true
+            true
         default:
-            return false
+            false
         }
     }
 
     public var isConnectionClosed: Bool {
         switch self {
         case .connectionFailedToInitialize:
-            return true
+            true
         default:
-            return false
+            false
         }
     }
 
     public var isConstraintFailure: Bool {
         switch self {
+        case .preparedStatementQueryError(let reason):
+            reason?.hasPrefix("Constraint Error:") == true
         default:
-            return false
+            false
         }
     }
 }

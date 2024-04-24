@@ -26,6 +26,7 @@ public struct DuckDBConnectionSource: ConnectionPoolSource, Sendable {
     ) -> EventLoopFuture<DuckDBConnection> {
         return DuckDBConnection.open(
             store: self.configuration.store,
+            configuration: self.configuration.configuration,
             threadPool: self.threadPool,
             logger: logger,
             on: eventLoop

@@ -34,7 +34,7 @@ extension _FluentDuckDBDatabase: Database {
         return self.database.withConnection { connection in
             connection.logging(to: self.logger)
                 .query(string, data) { row in
-                    onOutput(row)
+                    return onOutput(row)
                 }
                 .flatMap { self.eventLoop.makeSucceededFuture(()) }
         }
@@ -52,11 +52,11 @@ extension _FluentDuckDBDatabase: Database {
                     inTransaction: true
                 )
                 return closure(db).flatMap { result in
-                    conn.query("COMMIT TRANSACTION").map { _ in
+                    conn.query("COMMIT").map { _ in
                         result
                     }
                 }.flatMapError { error in
-                    conn.query("ROLLBACK TRANSACTION").flatMapThrowing { _ in
+                    conn.query("ROLLBACK").flatMapThrowing { _ in
                         throw error
                     }
                 }
