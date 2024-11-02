@@ -4,9 +4,9 @@ import Fluent
 import FluentSQL
 import NIOPosix
 
-@testable import FluendDuckDBDriver
+@testable import FluentDuckDBDriver
 
-final class FluendDuckDBDriverTests: XCTestCase {
+final class FluentDuckDBDriverTests: XCTestCase {
     static let logger = Logger(label: "TEST")
     
     func testConnection() async throws {
@@ -32,7 +32,7 @@ final class FluendDuckDBDriverTests: XCTestCase {
         
         let context = DatabaseContext(
             configuration: configuration,
-            logger: FluendDuckDBDriverTests.logger,
+            logger: FluentDuckDBDriverTests.logger,
             eventLoop: eventLoopGroup.next(),
             history: nil,
             pageSizeLimit: 100

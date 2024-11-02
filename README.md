@@ -1,4 +1,4 @@
-[DuckDB](https://duckdb.org) driver for [Vaport Fluent](https://docs.vapor.codes/fluent/overview/). Based on [Vaport Fluent SQLite](https://github.com/vapor/fluent-mysql-driver.git) code as local database library usage sample.
+[DuckDB](https://duckdb.org) driver for [Vapor Fluent](https://docs.vapor.codes/fluent/overview/). Based on [Vapor Fluent SQLite](https://github.com/vapor/fluent-sqlite-driver) code as local database library usage sample.
 
 # Package.swift
 ## Package dependeicnes:
@@ -7,13 +7,13 @@
 ```
 ## Target dependencies:
 ```swift
-.product(name: "FluendDuckDBDriver", package: "fluent-duckdb-driver"),
+.product(name: "FluentDuckDBDriver", package: "fluent-duckdb-driver"),
 ```
 
 # Usage
 ```swift
 import Fluent
-import FluendDuckDBDriver
+import FluentDuckDBDriver
 
 // in-memory
 app.databases.use(.duckdb(), as: .duckdb)
