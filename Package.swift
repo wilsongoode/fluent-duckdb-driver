@@ -16,8 +16,8 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-atomics.git", from: "1.2.0"),
         .package(url: "https://github.com/vapor/async-kit.git", from: "1.17.0"),
         .package(url: "https://github.com/vapor/fluent-kit.git", from: "1.43.0"),
-        .package(url: "https://github.com/vapor/fluent.git", from: "4.9.0"),
-        .package(url: "https://github.com/duckdb/duckdb-swift", .upToNextMinor(from: .init(0, 10, 0))),
+        .package(url: "https://github.com/vapor/fluent.git", from: "4.12.0"),
+        .package(url: "https://github.com/duckdb/duckdb-swift", from: "1.1.0"),
     ],
     targets: [
         .target(
