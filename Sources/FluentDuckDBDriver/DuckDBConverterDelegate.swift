@@ -18,12 +18,12 @@ struct DuckDBConverterDelegate: SQLConverterDelegate {
         case .double:
             return SQLRaw("DOUBLE PRECISION")
         case .dictionary:
-            return SQLRaw("JSONB")
+            return SQLRaw("JSON")
         case .array(of: let type):
             if let type = type, let dataType = self.customDataType(type) {
                 return SQLArrayDataType(dataType: dataType)
             } else {
-                return SQLRaw("JSONB")
+                return SQLRaw("JSON")
             }
         case .enum(let value):
             return SQLIdentifier(value.name)
